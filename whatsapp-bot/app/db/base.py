@@ -14,6 +14,7 @@ Rules
 • No SQL leaks above this layer — callers use typed methods, not raw queries.
 • `initialize()` is called once at startup; `close()` once at shutdown.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any
@@ -46,6 +47,14 @@ class AsyncDatabase(ABC):
     ) -> dict[str, Any] | None:
         """
         Run a SELECT and return the first row as a dict, or None if no rows.
+        """
+
+    @abstractmethod
+    async def fetchall(
+        self, query: str, params: tuple[Any, ...] = ()
+    ) -> list[dict[str, Any]]:
+        """
+        Run a SELECT and return all rows as a list of dicts.
         """
 
     @abstractmethod

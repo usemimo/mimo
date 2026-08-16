@@ -5,6 +5,7 @@ Centralised settings loaded from environment variables.
 Uses pydantic-settings so every variable is type-validated at startup.
 No secret defaults — the app will refuse to start if required vars are missing.
 """
+from __future__ import annotations
 
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,11 +34,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     app_env: str = "development"
 
-    # ── Idempotency store (Phase 2 — SQLite; Phase 3 — Postgres) ─────────────
-    idempotency_db_path: str = "data/idempotency.db"
+    # ── Database (Phase 3 — Postgres) ────────────────────────────────────────
+    postgres_dsn: str = "postgresql://user:password@localhost:5432/mimo"
     """
-    Path to the SQLite file used for wamid deduplication.
-    Phase 3: this setting is replaced by POSTGRES_DSN.
+    DSN for the PostgreSQL database (e.g., postgresql://user:pass@host:5432/db).
     """
 
 

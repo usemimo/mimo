@@ -14,6 +14,7 @@ References
 ──────────
 https://developers.facebook.com/docs/graph-api/webhooks/getting-started#verification-requests
 """
+from __future__ import annotations
 
 import hashlib
 import hmac

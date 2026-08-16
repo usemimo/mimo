@@ -15,6 +15,7 @@ Fix notes vs first attempt
 • app_with_mocks uses lifespan=False and sets app.state directly — avoids
   the lifespan spinning up a second DB instance that shadows our mock.
 """
+from __future__ import annotations
 
 import asyncio
 import hashlib

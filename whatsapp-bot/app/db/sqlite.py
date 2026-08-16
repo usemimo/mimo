@@ -19,6 +19,7 @@ When Postgres arrives, this file is replaced with AsyncPostgresDatabase.
 The idempotency layer calls only AsyncDatabase methods — it never touches
 SQLite-specific APIs — so the swap is mechanical.
 """
+from __future__ import annotations
 
 import aiosqlite
 
@@ -68,6 +69,33 @@ class SQLiteDatabase(AsyncDatabase):
                 correlation_id  TEXT NOT NULL
             )
         """)
+        
+        # Add mock tables for MessageHandler Phase 3 tests
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                whatsapp_id TEXT UNIQUE NOT NULL
+            )
+        """)
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                wamid TEXT UNIQUE NOT NULL,
+                user_id INTEGER,
+                direction TEXT,
+                message_type TEXT,
+                normalized_text TEXT,
+                correlation_id TEXT
+            )
+        """)
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                title TEXT,
+                status TEXT DEFAULT 'pending'
+            )
+        """)
         await self._conn.commit()
 
         logger.info("SQLite database initialised", extra={"db_path": self._db_path})
@@ -88,6 +116,15 @@ class SQLiteDatabase(AsyncDatabase):
             if row is None:
                 return None
             return dict(row)
+
+    async def fetchall(self, query: str, params: tuple = ()) -> list[dict[str, Any]]:
+        """Run a SELECT and return all rows as a list of dicts."""
+        if self._conn is None:
+            raise RuntimeError("Database not initialised — call initialize() first")
+
+        async with self._conn.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
     async def close(self) -> None:
         """Close the database connection."""

@@ -24,6 +24,7 @@ Extension point for Phase 3+
 Add more component checks (postgres, redis, external APIs) by appending
 to the `checks` dict inside `health_check()`.
 """
+from __future__ import annotations
 
 from datetime import datetime, timezone
 

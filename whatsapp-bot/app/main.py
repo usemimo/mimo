@@ -18,6 +18,7 @@ Extension seams left open
 • Phase 4 — replace in-memory worker queue with durable queue.
 • Phase 6+ — no changes to this file needed.
 """
+from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -31,7 +32,7 @@ from app.api.webhook import router as webhook_router
 from app.core.config import get_settings
 from app.core.idempotency import IdempotencyStore
 from app.core.logging import get_logger, setup_logging
-from app.db.sqlite import SQLiteDatabase
+from app.db.postgres import AsyncPostgresDatabase
 from app.workers.background import start_worker
 
 
@@ -62,7 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     # ── 1. Database ───────────────────────────────────────────────────────────
-    db = SQLiteDatabase(db_path=settings.idempotency_db_path)
+    db = AsyncPostgresDatabase(dsn=settings.postgres_dsn)
     await db.initialize()
     app.state.db = db
 
@@ -77,7 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.idempotency = IdempotencyStore(db)
 
     # ── 4. Background worker ──────────────────────────────────────────────────
-    worker_task = start_worker()
+    worker_task = start_worker(db=db, adapter=adapter)
     app.state.worker_task = worker_task
 
     logger.info("All components initialised — ready to receive messages")

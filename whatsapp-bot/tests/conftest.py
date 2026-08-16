@@ -10,6 +10,7 @@ Responsibilities
    database, adapter, or background worker.  Each test fixture injects its
    own clean components via app.state.
 """
+from __future__ import annotations
 
 import asyncio
 import os

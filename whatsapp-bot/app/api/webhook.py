@@ -15,6 +15,7 @@ Phase 2 changes vs Phase 1
 
 The HTTP pipeline (signature verify → parse → normalise) is unchanged.
 """
+from __future__ import annotations
 
 import json
 import uuid
@@ -157,6 +158,7 @@ async def _process_message(
     """
     idempotency = getattr(request.app.state, "idempotency", None)
     adapter = getattr(request.app.state, "adapter", None)
+    db = getattr(request.app.state, "db", None)
 
     logger.info(
         "Processing message",
@@ -177,8 +179,8 @@ async def _process_message(
             return
 
     # b. Route through message handler
-    if adapter is not None:
-        handler = MessageHandler(adapter)
+    if adapter is not None and db is not None:
+        handler = MessageHandler(adapter, db)
         try:
             await handler.handle(msg)
         except Exception as exc:

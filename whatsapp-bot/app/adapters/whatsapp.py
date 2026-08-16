@@ -24,6 +24,7 @@ API reference
 https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages
 """
 
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 

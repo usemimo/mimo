@@ -13,6 +13,7 @@ Helpers
 `_sign(body, secret)` produces the correct X-Hub-Signature-256 header value,
 mirroring exactly what WhatsApp Cloud API sends.
 """
+from __future__ import annotations
 
 import hashlib
 import hmac

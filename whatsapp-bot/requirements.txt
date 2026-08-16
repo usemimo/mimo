@@ -10,3 +10,5 @@ httpx==0.28.0
 aiosqlite>=0.20.0         # async wrapper around sqlite3 — pure Python, no compilation
 pytest==8.3.4
 pytest-asyncio==0.24.0
+asyncpg==0.29.0
+python-dateutil>=2.9.0

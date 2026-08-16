@@ -12,6 +12,7 @@ Key design decisions
 • In development the formatter produces human-readable output; in production
   it produces newline-delimited JSON suitable for Cloud Logging / Datadog.
 """
+from __future__ import annotations
 
 import json
 import logging

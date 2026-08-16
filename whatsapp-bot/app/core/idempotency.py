@@ -27,6 +27,7 @@ aiosqlite serialises writes, so there is no TOCTOU race condition
 within a single process.  Cross-process deduplication (Phase 3+) will
 rely on Postgres advisory locks or INSERT ... ON CONFLICT.
 """
+from __future__ import annotations
 
 from datetime import datetime, timezone
 
