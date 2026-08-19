@@ -24,6 +24,7 @@ from app.adapters.whatsapp import ButtonOption, WhatsAppAdapter
 from app.core.logging import get_logger
 from app.db.base import AsyncDatabase
 from app.schemas.whatsapp import InboundMessage
+from app.core.memory import MemoryStore
 
 logger = get_logger(__name__)
 
@@ -106,36 +107,45 @@ class MessageHandler:
             await self._handle_non_text(msg)
             return
 
-        text = (msg.text or "").strip().lower()
+        text = (msg.text or "").strip()
 
-        if text in ("help", "/help", "hi", "hello", "hey", "start"):
+        # Route all text messages through the LLM Gateway
+        from app.core.llm import LLMGateway
+        gateway = LLMGateway()
+        
+        extracted = await gateway.extract_intent(text)
+        
+        logger.info(f"LLM extracted intent: {extracted.intent}")
+        
+        if extracted.intent == "help":
             await self._handle_help(msg)
-        elif text.startswith("task "):
-            await self._handle_task_crud(msg, user_id, text)
+        elif extracted.intent == "unclear":
+            if extracted.clarification_question:
+                await self._adapter.send_text(msg.from_id, extracted.clarification_question)
+            else:
+                await self._handle_unknown_text(msg)
+        elif extracted.intent.startswith("task_"):
+            await self._handle_task_llm(msg, user_id, extracted)
+        elif extracted.intent.startswith("memory_"):
+            await self._handle_memory_llm(msg, user_id, extracted)
         else:
             await self._handle_unknown_text(msg)
 
     # ── Handlers ──────────────────────────────────────────────────────────────
 
-    async def _handle_task_crud(self, msg: InboundMessage, user_id: int, text: str) -> None:
-        """Basic Task CRUD for Phase 3 before LLM takes over."""
-        parts = text.split(" ", 2)
-        cmd = parts[1] if len(parts) > 1 else ""
+    async def _handle_task_llm(self, msg: InboundMessage, user_id: int, extracted: Any) -> None:
+        """Task CRUD using LLM extracted intent and entities."""
+        intent = extracted.intent.value
+        entities = extracted.entities
         
-        if cmd == "add" and len(parts) > 2:
-            title = msg.text.strip()[9:] # preserve original case
+        if intent == "task_add":
+            title = entities.get("title", "New Task")
+            due_str = entities.get("due_date")
             
-            # Check for due date
-            if " due:" in title.lower():
-                import re
+            if due_str:
                 from dateutil.parser import parse
                 from dateutil.tz import gettz
                 from datetime import timezone
-                
-                # Case insensitive split for " due:"
-                match = re.search(r'(?i)\s+due:', title)
-                main_title = title[:match.start()].strip()
-                due_str = title[match.end():].strip()
                 
                 user_row = await self._db.fetchone("SELECT timezone FROM users WHERE id = ?", (user_id,))
                 tz_str = user_row["timezone"] if user_row and user_row.get("timezone") else "UTC"
@@ -149,7 +159,7 @@ class MessageHandler:
                     
                     await self._db.execute(
                         "INSERT INTO tasks (user_id, title, due_time, timezone) VALUES (?, ?, ?, ?)", 
-                        (user_id, main_title, dt_utc.isoformat(), tz_str)
+                        (user_id, title, dt_utc.isoformat(), tz_str)
                     )
                     
                     row = await self._db.fetchone("SELECT id FROM tasks WHERE user_id = ? ORDER BY id DESC LIMIT 1", (user_id,))
@@ -160,9 +170,9 @@ class MessageHandler:
                         (task_id, dt_utc.isoformat())
                     )
                     
-                    await self._adapter.send_text(msg.from_id, f"✅ Task added: *{main_title}* (Due: {dt.strftime('%Y-%m-%d %H:%M %Z')})")
+                    await self._adapter.send_text(msg.from_id, f"✅ Task added: *{title}* (Due: {dt.strftime('%Y-%m-%d %H:%M %Z')})")
                 except Exception as e:
-                    logger.error("Failed to parse due date", exc_info=e)
+                    logger.error("Failed to parse due date from LLM", exc_info=e)
                     await self._adapter.send_text(msg.from_id, f"❌ Could not understand date: {due_str}")
             else:
                 await self._db.execute(
@@ -171,7 +181,7 @@ class MessageHandler:
                 )
                 await self._adapter.send_text(msg.from_id, f"✅ Task added: *{title}*")
             
-        elif cmd == "list":
+        elif intent == "task_list":
             rows = await self._db.fetchall("SELECT title, due_time FROM tasks WHERE user_id = ? AND status = 'pending' LIMIT 5", (user_id,))
             if rows:
                 lines = []
@@ -184,20 +194,42 @@ class MessageHandler:
             else:
                 await self._adapter.send_text(msg.from_id, "📭 No pending tasks!")
                 
-        elif cmd == "done" and len(parts) > 2:
-            # We will just mark the last task as done for simplicity of demonstration
+        elif intent == "task_done":
             await self._db.execute(
                 "UPDATE tasks SET status = 'completed' WHERE user_id = ? AND status = 'pending'", 
                 (user_id,)
             )
             await self._adapter.send_text(msg.from_id, "✅ Marked pending tasks as completed!")
             
-        elif cmd == "delete":
+        elif intent == "task_delete":
             await self._db.execute("DELETE FROM tasks WHERE user_id = ?", (user_id,))
             await self._adapter.send_text(msg.from_id, "🗑️ Deleted all tasks!")
+
+    async def _handle_memory_llm(self, msg: InboundMessage, user_id: int, extracted: Any) -> None:
+        """Memory CRUD using LLM extracted intent and entities."""
+        intent = extracted.intent.value
+        entities = extracted.entities
+        memory_store = MemoryStore(self._db)
+        
+        if intent == "memory_add":
+            fact = entities.get("fact")
+            if fact:
+                await memory_store.save_fact(user_id=user_id, fact=fact, source="user_text")
+                await self._adapter.send_text(msg.from_id, f"🧠 Memory saved: *{fact}*")
+            else:
+                await self._adapter.send_text(msg.from_id, "I couldn't figure out what fact you wanted me to remember.")
             
-        else:
-            await self._adapter.send_text(msg.from_id, "Command not recognized. Use: task add [name], task list, task done, task delete")
+        elif intent == "memory_view":
+            facts = await memory_store.get_active_facts(user_id=user_id)
+            if facts:
+                lines = [f"• {f['fact']}" for f in facts]
+                await self._adapter.send_text(msg.from_id, "🧠 Here is what I remember about you:\n" + "\n".join(lines))
+            else:
+                await self._adapter.send_text(msg.from_id, "🧠 I don't have any memories saved for you yet.")
+                
+        elif intent == "memory_forget":
+            await memory_store.forget_all(user_id=user_id)
+            await self._adapter.send_text(msg.from_id, "🗑️ I have forgotten all memories about you.")
 
     async def _handle_help(self, msg: InboundMessage) -> None:
         logger.info("Sending help menu", extra={"to": msg.from_id})

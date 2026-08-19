@@ -41,4 +41,5 @@ async def _noop_lifespan(app) -> AsyncGenerator[None, None]:
 # Apply the patch before any test module imports create_app().
 # The patch replaces `lifespan` in app.main's module namespace so that
 # create_app() picks up the no-op when it passes lifespan= to FastAPI().
+import app.main
 patch("app.main.lifespan", _noop_lifespan).start()

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str   # your WA Business phone number ID
     whatsapp_access_token: str      # long-lived / temporary API access token
 
+    # ── AI Orchestration (Phase 6+) ───────────────────────────────────────────
+    openai_api_key: str | None = None  # API key for OpenAI model
+
     # ── App ──────────────────────────────────────────────────────────────────
     log_level: str = "INFO"
     app_env: str = "development"

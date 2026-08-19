@@ -96,6 +96,21 @@ class SQLiteDatabase(AsyncDatabase):
                 status TEXT DEFAULT 'pending'
             )
         """)
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS memory_facts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                fact TEXT NOT NULL,
+                category TEXT,
+                source TEXT,
+                confidence REAL,
+                expiry_time TEXT,
+                visibility TEXT DEFAULT 'active',
+                deletion_marker BOOLEAN DEFAULT FALSE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         await self._conn.commit()
 
         logger.info("SQLite database initialised", extra={"db_path": self._db_path})
@@ -117,7 +132,7 @@ class SQLiteDatabase(AsyncDatabase):
                 return None
             return dict(row)
 
-    async def fetchall(self, query: str, params: tuple = ()) -> list[dict[str, Any]]:
+    async def fetchall(self, query: str, params: tuple = ()) -> list[dict[str, any]]:
         """Run a SELECT and return all rows as a list of dicts."""
         if self._conn is None:
             raise RuntimeError("Database not initialised — call initialize() first")

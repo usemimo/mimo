@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS memory_facts (
     category TEXT,
     source TEXT,
     confidence REAL,
+    expiry_time TIMESTAMP WITH TIME ZONE,
     visibility TEXT DEFAULT 'active',
     deletion_marker BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
